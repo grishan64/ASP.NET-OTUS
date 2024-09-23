@@ -3,12 +3,17 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using PromoCodeFactory.Core.Domain;
 
-namespace PromoCodeFactory.Core.Abstractions.Repositories
-{
-    public interface IRepository<T> where T: BaseEntity
-    {
-        Task<IEnumerable<T>> GetAllAsync();
+namespace PromoCodeFactory.Core.Abstractions.Repositories;
 
-        Task<T> GetByIdAsync(Guid id);
-    }
+public interface IRepository<T> where T : BaseEntity
+{
+    Task<IEnumerable<T>> GetAllAsync();
+
+    Task<T> GetByIdAsync(Guid id);
+
+    Task<bool> DeleteByIdAsync(Guid id);
+
+    Task<Guid> AddAsync(T item);
+
+    Task UpdateAsync(T item);
 }
