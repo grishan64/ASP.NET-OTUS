@@ -17,10 +17,14 @@ namespace PromoCodeFactory.WebHost.Controllers
     public class EmployeesController : ControllerBase
     {
         private readonly IRepository<Employee> _employeeRepository;
+        private readonly IRepository<Role> _roleRepository;
 
-        public EmployeesController(IRepository<Employee> employeeRepository)
+        public EmployeesController(
+            IRepository<Employee> employeeRepository,
+            IRepository<Role> roleRepository)
         {
             _employeeRepository = employeeRepository;
+            _roleRepository = roleRepository;
         }
 
         /// <summary>
@@ -28,7 +32,7 @@ namespace PromoCodeFactory.WebHost.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet]
-        public async Task<List<EmployeeShortResponse>> GetEmployeesAsync()
+        public async Task<ActionResult<IEnumerable<EmployeeShortResponse>>> GetEmployeesAsync()
         {
             var employees = await _employeeRepository.GetAllAsync();
 
@@ -38,9 +42,9 @@ namespace PromoCodeFactory.WebHost.Controllers
                     Id = x.Id,
                     Email = x.Email,
                     FullName = x.FullName,
-                }).ToList();
+                });
 
-            return employeesModelList;
+            return Ok(employeesModelList);
         }
 
         /// <summary>
@@ -61,14 +65,93 @@ namespace PromoCodeFactory.WebHost.Controllers
                 Email = employee.Email,
                 Roles = employee.Roles.Select(x => new RoleItemResponse()
                 {
+                    Id = x.Id,
                     Name = x.Name,
                     Description = x.Description
-                }).ToList(),
+                }),
                 FullName = employee.FullName,
                 AppliedPromocodesCount = employee.AppliedPromocodesCount
             };
 
-            return employeeModel;
+            return Ok(employeeModel);
+        }
+
+        /// <summary>
+        /// Удалить данные сотрудника по Id
+        /// </summary>
+        /// <returns></returns>
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> DeleteEmployeeByIdAsync(Guid id)
+        {
+            var result = await _employeeRepository.DeleteByIdAsync(id);
+
+            if (result == false)
+                return NotFound($"Employee with id: {id} not found");
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Создать сотрудника
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost]
+        public async Task<ActionResult<Guid>> CreateEmployeeAsync(EmployeeRequest employeeRequest)
+        {
+            var rolesOfNewEmployee = await GetRolesByIds(employeeRequest.RoleIds);
+            if (!rolesOfNewEmployee.Any())
+            {
+                return NotFound($"Roles with ids: {string.Join(",", employeeRequest.RoleIds.Select(x => x))} not found");
+            }
+
+            var employee = new Employee()
+            {
+                FirstName = employeeRequest.FirstName,
+                LastName = employeeRequest.LastName,
+                Email = employeeRequest.Email,
+                Roles = rolesOfNewEmployee.ToList()
+            };
+
+            var createdEmployeeId = await _employeeRepository.AddAsync(employee);
+
+            return Ok(createdEmployeeId);
+        }
+
+        /// <summary>
+        /// Изменить данные сотрудника
+        /// </summary>
+        /// <returns></returns>
+        [HttpPut("{id:guid}")]
+        public async Task<ActionResult<Guid>> UpdateEmployeeAsync(Guid id, EmployeeRequest employeeRequest)
+        {
+            var employee = await _employeeRepository.GetByIdAsync(id);
+
+            if (employee == default)
+            {
+                return NotFound($"Employee with id: {id} not found");
+            }
+
+            var rolesOfUpdatedEmployee = await GetRolesByIds(employeeRequest.RoleIds);
+            if (!rolesOfUpdatedEmployee.Any())
+            {
+                return NotFound($"Roles with ids: {string.Join(",", employeeRequest.RoleIds.Select(x => x))} not found");
+            }
+
+            employee.FirstName = employeeRequest.FirstName;
+            employee.LastName = employeeRequest.LastName;
+            employee.Email = employeeRequest.Email;
+            employee.Roles = rolesOfUpdatedEmployee.ToList();
+
+            await _employeeRepository.UpdateAsync(employee);
+
+            return NoContent();
+        }
+
+        private async Task<IEnumerable<Role>> GetRolesByIds(IEnumerable<Guid> roleIds)
+        {
+            var allRoles = await _roleRepository.GetAllAsync();
+
+            return allRoles.Where(x => roleIds.Contains(x.Id));
         }
     }
 }
